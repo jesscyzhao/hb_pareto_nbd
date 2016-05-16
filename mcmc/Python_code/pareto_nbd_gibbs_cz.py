@@ -2,10 +2,10 @@ import math
 import numpy as np
 import pandas as pd
 import copy
-from numba import vectorize
 import os
-# os.putenv('DISPLAY', '127.0.0.1:2222')
+from simulate_pareto_nbd import generate_pareto_nbd_data
 
+SIMULATE = False
 
 def run_single_chain(data, init_param, chain_id=1, num_iter=3000, burn_in=1000, thin=50, trace=10):
 
@@ -36,7 +36,7 @@ def run_single_chain(data, init_param, chain_id=1, num_iter=3000, burn_in=1000, 
             print 'step %s of chain %s' %(step, chain_id)
 
         if (step > burn_in) and ((step-1-burn_in)%thin==0):
-            idx = (step-1-burn_in)/thin + 1
+            idx = (step-1-burn_in)/thin
             print gamma_parameters
             latent_variables_draws[idx] = copy.deepcopy(latent_variables)
             gamma_parameters_draws[idx] = copy.deepcopy(gamma_parameters)
@@ -154,7 +154,7 @@ def draw_gamma_parameters(latent_variables, gamma_parameters, all_hyper_prior):
     return gamma_parameters
 
 
-@vectorize(["float64(float64, float64, int64, float64, float64)"], nopython=True, target='parallel')
+#@vectorize(["float64(float64, float64, int64, float64, float64)"], nopython=True, target='parallel')
 def draw_lambda(r, alpha, x, T_cal,tau):
     N = len(x)
     Lambda = [np.random.gamma(shape=r + x[i], scale=1/(alpha + min(T_cal[i], tau[i]))) for i in range(N)]
@@ -211,30 +211,33 @@ def draw_tau(Lambda, mu, tx, T_cal):
 
 if __name__ == '__main__':
 
-    # sim_shape = 1
-    # sim_rate = 5
-    # N = 5000
-    # sim_data = np.random.gamma(shape=sim_shape, scale=1.0/sim_rate, size=N)
-    #
-    # hyper_prior = [1e-3] * 4
-    # test_gamma_slice_sampling = slice_sampling_step(sim_data, 0.5, 0.5, hyper_prior, steps=5)
-    #
-    # # slice sampling seems to be working.
-    #
-    # sim_parameters = {'r': 2.0,
-    #                   'a': 10.0,
-    #                   's': 2.0,
-    #                   'b': 10.0
-    #                   }
-    #
-    # num_customer = 5000
+    if SIMULATE:
+        sim_shape = 1
+        sim_rate = 5
+        N = 5000
+        sim_data = np.random.gamma(shape=sim_shape, scale=1.0/sim_rate, size=N)
+
+        hyper_prior = [1e-3] * 4
+        test_gamma_slice_sampling = slice_sampling_step(sim_data, 0.5, 0.5, hyper_prior, steps=5)
+
+        # slice sampling seems to be working.
+
+        sim_parameters = {'r': 2.0,
+                          'a': 10.0,
+                          's': 2.0,
+                          'b': 10.0
+                          }
+
+        num_customer = 5000
+        data = generate_pareto_nbd_data(sim_parameters, num_customer)
+
 
     data = pd.read_csv(os.path.join('..', 'test_data', 'pnbd_gibbs_sampling_sim_data.csv'))
     data.index = range(data.shape[0])
     print data
 
     init_param = {'r': 0.5, 'alpha': 0.5, 's': 0.5, 'beta': 0.5}
-    mcmc_sample = run_single_chain(data, init_param)
+    mcmc_sample = run_single_chain(data, init_param, num_iter=100, burn_in=10)
 
 
 
